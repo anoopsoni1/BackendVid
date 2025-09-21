@@ -4,7 +4,10 @@ import { Server } from "socket.io";
 import cors from "cors";
 
 const io = new Server({
-  cors: true,
+  cors: {
+   origin: '*',
+    methods: ['GET', 'POST']
+  },
 });
 
 const app = express();
