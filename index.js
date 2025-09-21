@@ -6,6 +6,7 @@ import cors from "cors";
 const io = new Server({
   cors: {
    origin: 'https://frontendvideo.vercel.app',
+      path: '/socket.io',
     methods: ['GET', 'POST']
   },
 });
