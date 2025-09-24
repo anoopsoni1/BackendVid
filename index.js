@@ -8,55 +8,57 @@ const app = express();
 app.use(bodyParser.json());
 app.use(cors());
 
-const server = http.createServer(app); // Single HTTP server
-
-// Socket.IO attached to the same server
+const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: 'https://frontendvideo.vercel.app',
-    methods: ['GET', 'POST']
+    origin: "https://frontendvideo.vercel.app",
+    methods: ["GET", "POST"]
   }
 });
 
-const emailTosocketmapping = new Map();
-const sockettoemailmapping = new Map();
+// Map: socket.id -> { email, room }
+const userMap = new Map();
 
 io.on("connection", (socket) => {
-  console.log("✅ New Connection Build", socket.id);
+  console.log("✅ New Connection:", socket.id);
 
-  socket.on("join-room", (data) => {
-    const { roomid, emailid } = data;
-    console.log("📩 joined the server:", emailid);
-
-    emailTosocketmapping.set(emailid, socket.id);
-    sockettoemailmapping.set(socket.id, emailid);
-
+  socket.on("join-room", ({ roomid, emailid }) => {
+    console.log(`📩 ${emailid} joined room ${roomid}`);
     socket.join(roomid);
-    socket.emit("joined-room", roomid);
-    socket.broadcast.to(roomid).emit("user-joined", { emailid });
+    userMap.set(socket.id, { email: emailid, room: roomid });
+
+    // Notify existing users about the new user
+    socket.to(roomid).emit("user-joined", { socketId: socket.id, emailid });
+
+    // Send list of existing participants to new user
+    const existingUsers = Array.from(io.sockets.adapter.rooms.get(roomid) || [])
+      .filter((id) => id !== socket.id);
+    socket.emit("all-users", existingUsers);
   });
 
-  socket.on("call-user", (data) => {
-    const { emailid, offer } = data;
-    const fromEmail = sockettoemailmapping.get(socket.id);
-    const socketid = emailTosocketmapping.get(emailid);
-    if (!socketid) return console.log(`⚠️ User ${emailid} not found`);
-    socket.to(socketid).emit("incoming-call", { from: fromEmail, offer });
+  // Handle WebRTC Offer
+  socket.on("send-offer", ({ to, offer }) => {
+    socket.to(to).emit("receive-offer", { from: socket.id, offer });
   });
 
-  socket.on("Call-accepted", data => {
-    const { emailid, answer } = data;
-    const socketid = emailTosocketmapping.get(emailid);
-    if (!socketid) return;
-    socket.to(socketid).emit("Call-accepted", { answer });
+  // Handle WebRTC Answer
+  socket.on("send-answer", ({ to, answer }) => {
+    socket.to(to).emit("receive-answer", { from: socket.id, answer });
   });
 
+  // Handle ICE Candidates
+  socket.on("ice-candidate", ({ to, candidate }) => {
+    socket.to(to).emit("receive-ice-candidate", { from: socket.id, candidate });
+  });
+
+  // Handle disconnection
   socket.on("disconnect", () => {
-    console.log("❌ Socket disconnected:", socket.id);
-    const email = sockettoemailmapping.get(socket.id);
-    if (email) {
-      emailTosocketmapping.delete(email);
-      sockettoemailmapping.delete(socket.id);
+    const userData = userMap.get(socket.id);
+    if (userData) {
+      const { room } = userData;
+      console.log(`❌ ${userData.email} left room ${room}`);
+      socket.to(room).emit("user-left", { socketId: socket.id });
+      userMap.delete(socket.id);
     }
   });
 });
