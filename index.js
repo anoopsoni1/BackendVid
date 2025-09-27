@@ -8,58 +8,73 @@ const app = express();
 app.use(bodyParser.json());
 app.use(cors());
 
-const server = http.createServer(app); // Single HTTP server
+const server = http.createServer(app);
 
-// Socket.IO attached to the same server
 const io = new Server(server, {
   cors: {
-    origin: 'https://frontendvideo.vercel.app',
-    methods: ['GET', 'POST']
+    origin: "https://frontendvideo.vercel.app", // update if needed
+    methods: ["GET", "POST"]
   }
 });
 
-const emailTosocketmapping = new Map();
-const sockettoemailmapping = new Map();
+const emailToSocket = new Map();
+const socketToEmail = new Map();
+const rooms = new Map(); // roomId -> [email list]
 
 io.on("connection", (socket) => {
-  console.log("✅ New Connection Build", socket.id);
+  console.log("New connection", socket.id);
 
-  socket.on("join-room", (data) => {
-    const { roomid, emailid } = data;
-    console.log("📩 joined the server:", emailid);
+  socket.on("join-room", ({ roomid, emailid }) => {
+    console.log(`${emailid} joined room ${roomid}`);
 
-    emailTosocketmapping.set(emailid, socket.id);
-    sockettoemailmapping.set(socket.id, emailid);
+    emailToSocket.set(emailid, socket.id);
+    socketToEmail.set(socket.id, emailid);
+
+    if (!rooms.has(roomid)) rooms.set(roomid, []);
+    rooms.get(roomid).push(emailid);
 
     socket.join(roomid);
     socket.emit("joined-room", roomid);
+
+    // Notify others that a new user joined
     socket.broadcast.to(roomid).emit("user-joined", { emailid });
   });
 
-  socket.on("call-user", (data) => {
-    const { emailid, offer } = data;
-    const fromEmail = sockettoemailmapping.get(socket.id);
-    const socketid = emailTosocketmapping.get(emailid);
-    if (!socketid) return console.log(`⚠️ User ${emailid} not found`);
-    socket.to(socketid).emit("incoming-call", { from: fromEmail, offer });
+  socket.on("call-user", ({ emailid, offer }) => {
+    const socketId = emailToSocket.get(emailid);
+    if (socketId) {
+      socket.to(socketId).emit("incoming-call", { from: socketToEmail.get(socket.id), offer });
+    }
   });
 
-  socket.on("Call-accepted", data => {
-    const { emailid, answer } = data;
-    const socketid = emailTosocketmapping.get(emailid);
-    if (!socketid) return;
-    socket.to(socketid).emit("Call-accepted", { answer });
+  socket.on("call-accepted", ({ emailid, answer }) => {
+    const socketId = emailToSocket.get(emailid);
+    if (socketId) {
+      socket.to(socketId).emit("call-accepted", { answer, from: socketToEmail.get(socket.id) });
+    }
+  });
+
+  socket.on("ice-candidate", ({ emailid, candidate }) => {
+    const socketId = emailToSocket.get(emailid);
+    if (socketId) {
+      socket.to(socketId).emit("ice-candidate", { candidate, from: socketToEmail.get(socket.id) });
+    }
   });
 
   socket.on("disconnect", () => {
-    console.log("❌ Socket disconnected:", socket.id);
-    const email = sockettoemailmapping.get(socket.id);
-    if (email) {
-      emailTosocketmapping.delete(email);
-      sockettoemailmapping.delete(socket.id);
-    }
+    const email = socketToEmail.get(socket.id);
+    console.log("User disconnected:", email);
+
+    socketToEmail.delete(socket.id);
+    emailToSocket.delete(email);
+
+    // Remove from all rooms
+    rooms.forEach((users, roomid) => {
+      rooms.set(roomid, users.filter(u => u !== email));
+      socket.broadcast.to(roomid).emit("user-left", { emailid: email });
+    });
   });
 });
 
 const PORT = process.env.PORT || 8000;
-server.listen(PORT, () => console.log(`✅ Server running on ${PORT}`));
+server.listen(PORT, () => console.log(`Server running on ${PORT}`));
