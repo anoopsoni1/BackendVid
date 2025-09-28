@@ -59,6 +59,10 @@ io.on("connection", (socket) => {
       sockettoemailmapping.delete(socket.id);
     }
   });
+socket.on("chat-message", ({ message }) => {
+    socket.broadcast.emit("chat-message", { message });
+  });
+
 });
 
 const PORT = process.env.PORT || 8000;
