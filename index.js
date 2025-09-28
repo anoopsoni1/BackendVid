@@ -10,7 +10,6 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    // IMPORTANT: Change this to your exact frontend URL when you deploy!
     origin: "https://frontendvideo.vercel.app", 
     methods: ["GET", "POST"],
   },
