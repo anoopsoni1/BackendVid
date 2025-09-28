@@ -59,8 +59,8 @@ io.on("connection", (socket) => {
       sockettoemailmapping.delete(socket.id);
     }
   });
-socket.on("chat-message", ({ message }) => {
-    socket.broadcast.emit("chat-message", { message });
+socket.on("chat-message", ({ message , from }) => {
+    socket.broadcast.emit("chat-message", { message  , from});
     console.log(message);
     
   });
