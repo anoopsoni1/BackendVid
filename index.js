@@ -1,51 +1,65 @@
 import express from "express";
+import bodyParser from "body-parser";
 import { Server } from "socket.io";
 import http from "http";
 import cors from "cors";
 
 const app = express();
+app.use(bodyParser.json());
 app.use(cors());
 
-const server = http.createServer(app);
+const server = http.createServer(app); 
+
 
 const io = new Server(server, {
   cors: {
-    origin: "https://frontendvideo.vercel.app", 
-    methods: ["GET", "POST"],
-  },
+    origin: 'https://frontendvideo.vercel.app',
+        methods: ['GET', 'POST']
+  }
 });
 
+const emailTosocketmapping = new Map();
+const sockettoemailmapping = new Map();
+
 io.on("connection", (socket) => {
-  console.log("✅ New Connection:", socket.id);
+  console.log("New Connection Build", socket.id);
 
-  socket.on("room:join-ready", async () => {
-    const roomName = "main-room";
-    
-    const otherSockets = await io.in(roomName).fetchSockets();
-    otherSockets.forEach(otherSocket => {
-        socket.to(otherSocket.id).emit("user-joined", { socketId: socket.id });
-    });
-    
-    socket.join(roomName);
+  socket.on("join-room", (data) => {
+    const { roomid, emailid } = data;
+    console.log(" joined the server:", emailid);
+
+    emailTosocketmapping.set(emailid, socket.id);
+    sockettoemailmapping.set(socket.id, emailid);
+
+    socket.join(roomid);
+    socket.emit("joined-room", roomid);
+    socket.broadcast.to(roomid).emit("user-joined", { emailid });
   });
 
-  socket.on("call-user", ({ to, offer }) => {
-    socket.to(to).emit("incoming-call", { from: socket.id, offer });
+  socket.on("call-user", (data) => {
+    const { emailid, offer } = data;
+    const fromEmail = sockettoemailmapping.get(socket.id);
+    const socketid = emailTosocketmapping.get(emailid);
+    if (!socketid) return console.log(` User ${emailid} not found`);
+    socket.to(socketid).emit("incoming-call", { from: fromEmail, offer });
   });
 
-  socket.on("call-accepted", ({ to, answer }) => {
-    socket.to(to).emit("call-accepted", { from: socket.id, answer });
-  });
-
-  socket.on("ice-candidate", ({ to, candidate }) => {
-    socket.to(to).emit("ice-candidate", { from: socket.id, candidate });
+  socket.on("Call-accepted", data => {
+    const { emailid, answer } = data;
+    const socketid = emailTosocketmapping.get(emailid);
+    if (!socketid) return;
+    socket.to(socketid).emit("Call-accepted", { answer });
   });
 
   socket.on("disconnect", () => {
-    console.log("❌ Socket disconnected:", socket.id);
-    io.to("main-room").emit("user-left", { socketId: socket.id });
+    console.log(" Socket disconnected:", socket.id);
+    const email = sockettoemailmapping.get(socket.id);
+    if (email) {
+      emailTosocketmapping.delete(email);
+      sockettoemailmapping.delete(socket.id);
+    }
   });
 });
 
 const PORT = process.env.PORT || 8000;
-server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Server running on ${PORT}`));
