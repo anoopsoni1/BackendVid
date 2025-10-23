@@ -12,7 +12,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: 'https://frontendvideo.vercel.app',
+    origin: ['https://frontendvideo.vercel.app', "http://localhost:5173"],
     methods: ['GET', 'POST']
   }
 });
@@ -20,8 +20,8 @@ const io = new Server(server, {
 const emailTosocketmapping = new Map();
 const sockettoemailmapping = new Map();
 
-// Track users in rooms for 1-on-1
-const rooms = new Map(); // roomid => [email1, email2]
+
+const rooms = new Map();
 
 io.on("connection", (socket) => {
   console.log("New Connection Build", socket.id);
@@ -29,14 +29,13 @@ io.on("connection", (socket) => {
   socket.on("join-room", (data) => {
     const { roomid, emailid } = data;
 
-    // Check if room exists
+  
     if (!rooms.has(roomid)) {
       rooms.set(roomid, []);
     }
 
     const participants = rooms.get(roomid);
 
-    // If room already has 2 users, block join
     if (participants.length >= 2) {
       socket.emit("room-full");
       return;
@@ -82,13 +81,11 @@ io.on("connection", (socket) => {
       emailTosocketmapping.delete(email);
       sockettoemailmapping.delete(socket.id);
 
-      // Remove user from room
       rooms.forEach((participants, roomid) => {
         const index = participants.indexOf(email);
         if (index !== -1) {
           participants.splice(index, 1);
           rooms.set(roomid, participants);
-          // Notify remaining user
           socket.to(roomid).emit("user-left", { emailid: email });
         }
       });
