@@ -101,7 +101,7 @@ import { configDotenv } from "dotenv";
   
 configDotenv() ;
  
-mongoose.connect(`${process.env.MONGO_URI}/VIDEOCALL`);
+mongoose.connect(`${process.env.MON_URI}/VIDEOCALL`);
 
 const contactSchema = new mongoose.Schema({
   name: String,
