@@ -93,5 +93,50 @@ io.on("connection", (socket) => {
   });
 });
 
+
+
+
+import mongoose from "mongoose";
+
+mongoose.connect("mongodb+srv://anoopsoni8965:8965863610@cluster0.7eqgepr.mongodb.net/VIDEOCALL");
+
+const contactSchema = new mongoose.Schema({
+  name: String,
+  tel: [String],
+  email: [String],
+});
+
+const Contact = mongoose.model("Contact", contactSchema);
+
+app.post("/api/saveContacts", async (req, res) => {
+  try {
+    const { contacts } = req.body;
+
+    if (!contacts || !Array.isArray(contacts)) {
+      return res.status(400).json({ message: "Invalid contact data" });
+    }
+
+    await Contact.insertMany(
+      contacts.map((c) => ({
+        name: c.name ? c.name[0] : "Unknown",
+        tel: c.tel || [],
+        email: c.email || [],
+      }))
+    );
+
+    res.json({ message: "Contacts saved successfully!" });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error saving contacts" });
+  }
+});
+
+app.get("/api/getContacts", async (req, res) => {
+  const allContacts = await Contact.find();
+  res.json(allContacts);
+});
+
+
+
 const PORT = process.env.PORT || 8000;
 server.listen(PORT, () => console.log(`Server running on ${PORT}`));
