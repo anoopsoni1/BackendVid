@@ -97,8 +97,11 @@ io.on("connection", (socket) => {
 
 
 import mongoose from "mongoose";
-
-mongoose.connect("mongodb+srv://anoopsoni8965:8965863610@cluster0.7eqgepr.mongodb.net/VIDEOCALL");
+import { configDotenv } from "dotenv";
+  
+configDotenv() ;
+ 
+mongoose.connect(`${process.env.MONGO_URI}/VIDEOCALL`);
 
 const contactSchema = new mongoose.Schema({
   name: String,
