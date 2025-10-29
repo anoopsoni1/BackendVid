@@ -94,13 +94,11 @@ io.on("connection", (socket) => {
 });
 
 
-
-
 import mongoose from "mongoose";
 import { configDotenv } from "dotenv";
+
   
 configDotenv() ;
- 
 mongoose.connect(`${process.env.MON_URI}/VIDEOCALL`);
 
 const contactSchema = new mongoose.Schema({
@@ -137,6 +135,16 @@ app.post("/api/saveContacts", async (req, res) => {
 app.get("/api/getContacts", async (req, res) => {
   const allContacts = await Contact.find();
   res.json(allContacts);
+});
+
+app.delete("/api/deleteContact/:id", async (req, res) => {
+  try {
+    const id = req.params.id;
+    await Contact.findByIdAndDelete(id);
+    res.status(200).json({ message: "Contact deleted successfully!" });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to delete contact" });
+  }
 });
 
 
